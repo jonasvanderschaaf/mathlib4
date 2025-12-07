@@ -55,19 +55,6 @@ public lemma typesWith_basis : IsTopologicalBasis (range (typesWith (α := α) (
 instance : CompactSpace (CompleteType T α) := by
   refine CompactSpace.mk (isCompact_iff_ultrafilter_le_nhds.mpr ?_)
   intro F F_ne_bot
-  let p_theory := {φ | typesWith φ ∈ F}
-  have sat : IsSatisfiable p_theory := by
-    rw [isSatisfiable_iff_isFinitelySatisfiable]
-    intro t ht
-    have : ⋂ φ ∈ t, typesWith φ ∈ F := t.iInter_mem_sets.mpr fun φ hφ ↦ ht hφ
-    rw [←iInter_subtype (Membership.mem t) (fun ⟨φ, _⟩ ↦ typesWith φ)] at this
-    obtain ⟨p, hp⟩ := F.nonempty_of_mem this
-    apply IsSatisfiable.mono p.isMaximal.1 (fun φ hφ ↦ hp _ ⟨⟨φ, hφ⟩, rfl⟩)
-  have complete : ∀ φ, φ ∈ p_theory ∨ ∼φ ∈ p_theory := by
-    intro φ
-    simp only [mem_setOf_eq, p_theory]
-    rw [typesWith_compl]
-    exact Ultrafilter.mem_or_compl_mem F (typesWith φ)
   let p : CompleteType T α := {
     toTheory := {φ | typesWith φ ∈ F}
     subset' := by
