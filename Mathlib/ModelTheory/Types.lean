@@ -183,7 +183,7 @@ theorem formula_mem_typeOf {φ : L.Formula α} :
     Formula.equivSentence φ ∈ T.typeOf v ↔ φ.Realize v := by simp
 
 /-- The clopen set of complete types which contain a formula. -/
-def typesWith : L[[α]].Sentence → Set (CompleteType T α) := fun φ ↦ {p | φ ∈ p.toTheory}
+def typesWith : L[[α]].Sentence → Set (CompleteType T α) := fun φ ↦ {p | φ ∈ p}
 
 lemma typesWith_inter (φ ψ : L[[α]].Sentence)
     : typesWith (T := T) (φ ⊓ ψ) = typesWith φ ∩ typesWith ψ := by
@@ -192,6 +192,13 @@ lemma typesWith_inter (φ ψ : L[[α]].Sentence)
     ↔ φ ∈ (p : Set (L[[α]]).Sentence) ∧ ψ ∈ (p : Set (L[[α]]).Sentence)
   simp only [p.isMaximal.mem_iff_models, ModelsBoundedFormula, ←forall_and]
   exact forall₃_congr fun _ _ _ ↦ BoundedFormula.realize_inf
+
+lemma typesWith_true {φ} (hφ : φ ∈ (L.lhomWithConstants α).onTheory T)
+    : typesWith (T := T) φ = Set.univ
+  := univ_subset_iff.mp fun p _ ↦ p.subset hφ
+
+lemma typesWith_compl (φ : L[[α]].Sentence) : typesWith ∼φ = (typesWith (T := T) φ)ᶜ := by
+  simp [typesWith]
 
 end CompleteType
 

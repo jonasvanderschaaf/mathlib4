@@ -9,6 +9,9 @@ module
 public import Mathlib.ModelTheory.Types
 public import Mathlib.Topology.Bases
 public import Mathlib.Topology.Compactness.Compact
+public import Mathlib.Topology.Connected.TotallyDisconnected
+public import Mathlib.Topology.Separation.Hausdorff
+public import Mathlib.Topology.Connected.Separation
 
 /-!
 # Topology on the space of complete types
@@ -32,7 +35,7 @@ namespace CompleteType
 
 universe u
 
-variable {L : Language} (T : L.Theory) (α : Type _)
+variable {L : Language} {T : L.Theory} {α : Type _}
 
 instance : TopologicalSpace (CompleteType T α) := generateFrom (range typesWith)
 
@@ -50,62 +53,67 @@ public lemma typesWith_basis : IsTopologicalBasis (range (typesWith (α := α) (
   eq_generateFrom := rfl
 
 instance : CompactSpace (CompleteType T α) := by
-  classical
-  apply compactSpace_generateFrom' rfl
-  intro ι U hcover
-  have hU : ∀ i, ∃ φ, typesWith φ = (U i).1 := by
-    intro i
-    obtain ⟨_, φ, _, _⟩ := U i
-    exact ⟨φ, rfl⟩
-  choose φ hφ using hU
-  let nφ : ι → L[[α]].Sentence := fun i ↦ ∼(φ i)
-  let T' := (L.lhomWithConstants α).onTheory T ∪ (range nφ)
-  have : ¬T'.IsSatisfiable := by
-    rintro ⟨M⟩
-    let p : CompleteType T α := {
-      toTheory := L[[α]].completeTheory M
-      subset' := subset_trans subset_union_left (completeTheory.subset (MT := M.is_model))
-      isMaximal' := completeTheory.isMaximal _ _
-    }
-    obtain ⟨Ui, ⟨⟨i, hi⟩, hi'⟩⟩ := (propext_iff.mp (congr_arg (fun s ↦ p ∈ s) hcover)).mpr trivial
-    refine mem_not_mem p.isMaximal.isComplete.1
-      (by simpa [←hi, ←hφ] using hi')
-      (completeTheory.subset (T := T') (mem_union_right _ ⟨i, rfl⟩))
-  rw [isSatisfiable_iff_isFinitelySatisfiable, IsFinitelySatisfiable] at this
-  push_neg at this
-  obtain ⟨t, ht, htsat⟩ := this
-  let t : Set (L[[α]]).Sentence := ↑t
-  have ht : t ⊆ T' := ht
-  let Tfin := {ψ ∈ t | ψ ∈ (L.lhomWithConstants α).onTheory T}
-  let negfin := {ψ ∈ t | ψ ∈ range nφ}
-  have tdecomp : t = Tfin ∪ negfin := by
-    apply Subset.antisymm
-    · intro ψ hψ
-      rw [
-          mem_union,
-          mem_setOf, mem_setOf,
-          ←and_or_left
-      ]
-      exact ⟨hψ, ht hψ⟩
-    · exact union_subset
-        (sep_subset _ (Membership.mem _))
-        (sep_subset _ (Membership.mem _))
-  have : ∀ ψ : negfin, ∃ i, nφ i = ψ :=
-    fun ψ ↦ by have := ψ.2; simp only [negfin] at this; exact this.2
-  choose index index_inv using this
-  refine ⟨(range index), finite_range index, ?_⟩
-  rw [←univ_subset_iff]
-  intro p _
-  simp only [mem_iUnion, exists_prop, negfin, mem_range,]
-  have : ¬t ⊆ p.toTheory := htsat ∘ (IsSatisfiable.mono p.isMaximal.isComplete.1 ·)
-  rw [tdecomp] at this ht
-  simp only [Tfin, negfin, LHom.mem_onTheory, mem_range, union_subset_iff,
-    not_and] at this
-  specialize this (subset_trans (fun _ hx ↦ hx.2) p.subset)
-  obtain ⟨ψ, ⟨hψt, i, hi⟩, hψ⟩ := not_subset.mp this
-  refine ⟨index ⟨ψ, hψt, i, hi⟩, ⟨⟨ψ, hψt, i, hi⟩, rfl⟩, ?_⟩
-  have : Formula.not (φ _) = ψ := index_inv ⟨ψ, ⟨hψt, ⟨i, hi⟩⟩⟩
-  erw [←hφ, typesWith, mem_setOf, ←not_not (a := φ _ ∈ p), ←p.not_mem_iff, this]
-  exact hψ
+  refine CompactSpace.mk (isCompact_iff_ultrafilter_le_nhds.mpr ?_)
+  intro F F_ne_bot
+  let p_theory := {φ | typesWith φ ∈ F}
+  have sat : IsSatisfiable p_theory := by
+    rw [isSatisfiable_iff_isFinitelySatisfiable]
+    intro t ht
+    have : ⋂ φ ∈ t, typesWith φ ∈ F := t.iInter_mem_sets.mpr fun φ hφ ↦ ht hφ
+    rw [←iInter_subtype (Membership.mem t) (fun ⟨φ, _⟩ ↦ typesWith φ)] at this
+    obtain ⟨p, hp⟩ := F.nonempty_of_mem this
+    apply IsSatisfiable.mono p.isMaximal.1 (fun φ hφ ↦ hp _ ⟨⟨φ, hφ⟩, rfl⟩)
+  have complete : ∀ φ, φ ∈ p_theory ∨ ∼φ ∈ p_theory := by
+    intro φ
+    simp only [mem_setOf_eq, p_theory]
+    rw [typesWith_compl]
+    exact Ultrafilter.mem_or_compl_mem F (typesWith φ)
+  let p : CompleteType T α := {
+    toTheory := {φ | typesWith φ ∈ F}
+    subset' := by
+      intro φ hφ
+      rw [mem_setOf_eq, typesWith_true hφ]
+      exact F.univ_mem
+    isMaximal' := by
+      constructor
+      · rw [isSatisfiable_iff_isFinitelySatisfiable]
+        intro t ht
+        have : ⋂ φ ∈ t, typesWith φ ∈ F := t.iInter_mem_sets.mpr fun φ hφ ↦ ht hφ
+        rw [←iInter_subtype (Membership.mem t) (fun ⟨φ, _⟩ ↦ typesWith φ)] at this
+        obtain ⟨p, hp⟩ := F.nonempty_of_mem this
+        apply IsSatisfiable.mono p.isMaximal.1 (fun φ hφ ↦ hp _ ⟨⟨φ, hφ⟩, rfl⟩)
+      · intro φ
+        simp only [mem_setOf_eq, typesWith_compl]
+        exact Ultrafilter.mem_or_compl_mem F (typesWith φ)
+  }
+  refine ⟨p, trivial, ?_⟩
+  rw [nhds_generateFrom]
+  apply le_iInf₂
+  intro S ⟨hp, φ, hφ⟩
+  rw [←hφ] at hp
+  rwa [Filter.le_principal_iff, ←hφ]
+
+lemma typesWith_open (φ : (L[[α]]).Sentence) : IsOpen (typesWith (T := T) φ) :=
+  isOpen_generateFrom_of_mem ⟨φ, rfl⟩
+
+lemma typesWith_closed (φ : (L[[α]]).Sentence) : IsClosed (typesWith (T := T) φ) where
+  isOpen_compl := by rw [←typesWith_compl]; exact typesWith_open _
+
+lemma typesWith_clopen (φ : (L[[α]]).Sentence) : IsClopen (typesWith (T := T) φ) where
+  left := typesWith_closed _
+  right := typesWith_open _
+
+instance : TotallySeparatedSpace (CompleteType T α) := by
+  rw [totallySeparatedSpace_iff_exists_isClopen]
+  intro p q hpq
+  simp only [ne_eq, SetLike.ext_iff, not_forall, not_iff] at hpq
+  obtain ⟨φ, hφ⟩ := hpq
+  exact (mem_or_not_mem p φ).elim
+    (fun h ↦ ⟨typesWith φ, typesWith_clopen _, h, by change ¬φ ∈ q; rwa [←hφ, not_not]⟩)
+    (fun h ↦ ⟨
+        typesWith ∼φ,
+        typesWith_clopen _, h,
+        by change ¬∼φ∈q; rwa [not_mem_iff,←hφ, not_not, ←not_mem_iff]
+      ⟩)
 
 end CompleteType
